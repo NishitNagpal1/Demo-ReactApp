@@ -1,28 +1,33 @@
 {
   "expo": {
-    "name": "my-new-app",
-    "slug": "my-new-app",
+    "name": "Twinmind",
+    "slug": "twinmind",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mynewapp",
+    "scheme": "twinmind",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
+      "package": "com.twinmind.demo",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true
     },
+
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
       [
@@ -35,8 +40,13 @@
         }
       ]
     ],
+
     "experiments": {
       "typedRoutes": true
+    },
+
+    "extra": {
+      "googleAndroidClientId": "71497753587-qutr5nqpbdvorm83furgav4vffi7bc0i.apps.googleusercontent.com"
     }
   }
 }
