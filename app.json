@@ -46,7 +46,8 @@
     },
 
     "extra": {
-      "googleAndroidClientId": "71497753587-qutr5nqpbdvorm83furgav4vffi7bc0i.apps.googleusercontent.com"
+      "googleAndroidClientId": "71497753587-qutr5nqpbdvorm83furgav4vffi7bc0i.apps.googleusercontent.com",
+      "ASSEMBLY_AI_API_KEY": "568508593113444a8a2226098c042033"
     }
   }
 }

@@ -9,6 +9,7 @@ import { Audio } from 'expo-av';
 import NetInfo from '@react-native-community/netinfo';
 import { useRouter } from 'expo-router';
 import { initDB, saveTranscript, getTranscripts } from '../utils/db';
+import { transcribeWithAssemblyAI } from '../utils/assemblyai';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -286,62 +287,32 @@ function MainAppScreen() {
 
   const transcribeAudioChunk = async (audioChunk: { uri: string | null; timestamp: number; processed: boolean }, retryCount = 0) => {
     try {
-      // Convert audio to Blob and append to FormData
-      const formData = new FormData();
-      if (audioChunk.uri) {
-        // @ts-ignore: React Native FormData supports { uri, type, name }
-        formData.append('audio', {
-          uri: audioChunk.uri,
-          type: 'audio/wav',
-          name: 'audio.wav',
-        } as any);
-      }
+      if (!audioChunk.uri) throw new Error("No audio URI");
 
-      // Call Google Gemini 2.0 Flash API
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await AsyncStorage.getItem('googleAccessToken')}`,
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: "Please transcribe this audio segment accurately."
-            }]
-          }]
-        })
-      });
+      // 1. Transcribe with AssemblyAI
+      const transcribedText = await transcribeWithAssemblyAI(audioChunk.uri);
 
-      if (response.ok) {
-        const result = await response.json();
-        const transcribedText = result.candidates[0]?.content?.parts[0]?.text || '';
-        
-        const newSegment = {
-          id: Date.now() + Math.random(),
-          timestamp: audioChunk.timestamp,
-          text: transcribedText,
-          duration: '30s'
-        };
+      // 2. Save to SQLite
+      saveTranscript(transcribedText);
 
-        setTranscriptionSegments(prev => [...prev, newSegment]);
-        
-        // Mark audio chunk as processed
-        audioChunk.processed = true;
-      } else {
-        throw new Error('Transcription API error');
-      }
+      // 3. Update UI
+      const newSegment = {
+        id: Date.now() + Math.random(),
+        timestamp: audioChunk.timestamp,
+        text: transcribedText,
+        duration: '30s'
+      };
+      setTranscriptionSegments(prev => [...prev, newSegment]);
+      audioChunk.processed = true;
     } catch (error) {
       console.error('Transcription error:', error);
-      
-      // Implement exponential backoff retry
+      // Retry logic as before
       if (retryCount < 3) {
         const delay = Math.pow(2, retryCount) * 1000;
         setTimeout(() => {
           transcribeAudioChunk(audioChunk, retryCount + 1);
         }, delay);
       } else {
-        // Add to pending chunks if all retries failed
         setPendingAudioChunks(prev => [...prev, audioChunk]);
       }
     }

@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, Alert } from 'react-native';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
 import { initDB, saveTranscript, getTranscripts } from '../utils/db';
+import { transcribeWithAssemblyAI } from '../utils/assemblyai';
 
-const GEMINI_API_KEY = 'AIzaSyDV42isVd3ntMJvqjD_5U_-ApGVECullBI';
 const TABS = ['Searches', 'Notes', 'Transcript'] as const;
 type Tab = typeof TABS[number];
 
@@ -16,19 +14,19 @@ export default function ListeningScreen() {
   const [isRecording, setIsRecording] = useState(true);
   const [transcript, setTranscript] = useState<string[]>([]);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [savedTranscripts, setSavedTranscripts] = useState<string[]>([]);
-  const timerRef = useRef<number | null>(null);
-  const router = useRouter();
+  const [savedTranscripts, setSavedTranscripts] = useState<{ content: string, created_at: string }[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     initDB();
-    getTranscripts(rows => setSavedTranscripts(rows.map(r => r.content)));
+    getTranscripts(rows => setSavedTranscripts(rows));
     timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
     startRecording();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       stopRecording();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Format timer as HH:MM:SS
@@ -69,44 +67,32 @@ export default function ListeningScreen() {
 
   async function transcribeAudio(uri: string) {
     try {
-      // Read audio as base64
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      // Gemini API expects text, so you need to use a speech-to-text API first.
-      // For demo, we'll just add a fake transcript.
-      // Replace this with your actual Gemini integration.
-      const geminiResponse = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + GEMINI_API_KEY,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: "Transcribe this meeting audio: [audio omitted for demo, use speech-to-text first]"
-              }]
-            }]
-          })
-        }
-      );
-      const result = await geminiResponse.json();
-      const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || 'Transcription not available.';
+      setTranscript(['Transcribing...']);
+      const text = await transcribeWithAssemblyAI(uri);
       setTranscript([text]);
       saveTranscript(text);
-      getTranscripts(rows => setSavedTranscripts(rows.map(r => r.content)));
+      getTranscripts(rows => setSavedTranscripts(rows));
     } catch (e) {
       setTranscript(['Transcription failed.']);
     }
   }
 
-  function handleStop() {
-    stopRecording();
-    router.back();
+  async function handleStop() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setIsRecording(false);
+    if (recording) {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      if (uri) {
+        await transcribeAudio(uri);
+      }
+    }
   }
 
   function handleSave() {
     if (transcript.length > 0) {
       saveTranscript(transcript.join('\n'));
-      getTranscripts(rows => setSavedTranscripts(rows.map(r => r.content)));
+      getTranscripts(rows => setSavedTranscripts(rows));
       Alert.alert('Saved', 'Transcript saved locally.');
     }
   }
@@ -158,21 +144,35 @@ export default function ListeningScreen() {
         )}
         {activeTab === 'Transcript' && (
           <ScrollView style={{flex: 1}}>
-            {transcript.length === 0 ? (
-              <Text style={styles.placeholder}>Transcript will appear here after you stop recording.</Text>
-            ) : (
+            {/* Only show after stop and transcription */}
+            {transcript.length > 0 && transcript[0] !== 'Transcribing...' && (
               <>
+                <Text style={styles.sectionTitle}>Current Session Transcript</Text>
                 {transcript.map((line, idx) => (
                   <Text key={idx} style={styles.transcriptLine}>{line}</Text>
                 ))}
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                   <Text style={styles.saveBtnText}>💾 Save Transcript</Text>
                 </TouchableOpacity>
-                <Text style={styles.sectionTitle}>Saved Transcripts</Text>
-                {savedTranscripts.map((t, i) => (
-                  <Text key={i} style={styles.savedTranscript}>{t}</Text>
-                ))}
               </>
+            )}
+            {transcript[0] === 'Transcribing...' && (
+              <Text style={styles.placeholder}>Transcribing audio, please wait...</Text>
+            )}
+
+            {/* Show all saved transcripts */}
+            <Text style={styles.sectionTitle}>All Saved Transcripts</Text>
+            {savedTranscripts.length === 0 ? (
+              <Text style={styles.placeholder}>No transcripts saved yet.</Text>
+            ) : (
+              savedTranscripts.map((t, i) => (
+                <View key={i} style={styles.savedTranscriptBox}>
+                  <Text style={styles.savedTranscriptDate}>
+                    {t.created_at ? new Date(t.created_at).toLocaleString() : ''}
+                  </Text>
+                  <Text style={styles.savedTranscript}>{t.content}</Text>
+                </View>
+              ))
             )}
           </ScrollView>
         )}
@@ -185,7 +185,7 @@ export default function ListeningScreen() {
         <TouchableOpacity style={styles.chatBtn}>
           <Text style={styles.chatBtnText}>Chat with Transcript</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.stopBtn} onPress={handleStop}>
+        <TouchableOpacity style={styles.stopBtn} onPress={handleStop} disabled={!isRecording}>
           <Text style={styles.stopBtnText}>Stop</Text>
         </TouchableOpacity>
       </View>
@@ -220,7 +220,22 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: '#E3EAFD', padding: 10, borderRadius: 20, alignItems: 'center', marginVertical: 10 },
   saveBtnText: { color: '#007AFF', fontWeight: '600', fontSize: 14 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#007AFF', marginTop: 20 },
-  savedTranscript: { color: '#666', fontSize: 13, marginTop: 6 },
+  savedTranscript: {
+    color: '#333',
+    fontSize: 15,
+  },
+  savedTranscriptBox: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    elevation: 1,
+  },
+  savedTranscriptDate: {
+    color: '#007AFF',
+    fontSize: 12,
+    marginBottom: 4,
+  },
   bottomBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E0E0E0' },
   getAnswer: { backgroundColor: '#E3EAFD', padding: 10, borderRadius: 20, flex: 1, marginRight: 6, alignItems: 'center' },
   getAnswerText: { color: '#007AFF', fontWeight: '600', fontSize: 14 },
