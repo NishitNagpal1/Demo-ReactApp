@@ -10,6 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { useRouter } from 'expo-router';
 import { initDB, saveTranscript, getTranscripts } from '../utils/db';
 import { transcribeWithAssemblyAI } from '../utils/assemblyai';
+import * as AuthSession from 'expo-auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -17,9 +18,9 @@ export default function LandingScreen() {
   const [showMainApp, setShowMainApp] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: '71497753587-qutr5nqpbdvorm83furgav4vffi7bc0i.apps.googleusercontent.com',
+    clientId: '485416641410-1sblq2n1s3gjuafhnanls0g7l769a1cb.apps.googleusercontent.com',
     androidClientId: '71497753587-qutr5nqpbdvorm83furgav4vffi7bc0i.apps.googleusercontent.com',
-    webClientId: '71497753587-qutr5nqpbdvorm83furgav4vffi7bc0i.apps.googleusercontent.com',
+    webClientId: '485416641410-1sblq2n1s3gjuafhnanls0g7l769a1cb.apps.googleusercontent.com',
     scopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
   });
 
@@ -1124,3 +1125,4 @@ const mainAppStyles = StyleSheet.create({
 useEffect(() => {
   initDB();
 }, []);
+// To get the redirect URI, use makeRedirectUri (without the invalid 'useProxy' option)

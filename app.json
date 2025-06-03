@@ -8,11 +8,9 @@
     "scheme": "twinmind",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "package": "com.twinmind.demo",
       "adaptiveIcon": {
@@ -21,13 +19,11 @@
       },
       "edgeToEdgeEnabled": true
     },
-
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -40,14 +36,16 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true
     },
-
     "extra": {
       "googleAndroidClientId": "71497753587-qutr5nqpbdvorm83furgav4vffi7bc0i.apps.googleusercontent.com",
-      "ASSEMBLY_AI_API_KEY": "568508593113444a8a2226098c042033"
+      "ASSEMBLY_AI_API_KEY": "568508593113444a8a2226098c042033",
+      "router": {},
+      "eas": {
+        "projectId": "b0bfc4a9-d4f1-474a-aa5a-be620c4c4824"
+      }
     }
   }
 }
